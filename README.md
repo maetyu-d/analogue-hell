@@ -2,7 +2,7 @@
 
 ![](https://github.com/maetyu-d/analogue-hell/blob/main/gordon-ramsay-1-7bab40d4093b496da5efa608670c5a7d.jpg)
 
-A suite of 10 plugins that explore analogue breakdown, malfunction, and haunted calibration aesthetics. To put another way, if they were a hotel, they'd be the kind that Gordon Ramsay visits and, for reasons unknown, insists on baring his bum in... Created using JUCE.
+A counterpoint to my Digitalise suite, Analogue Hell is a suite of 10 plugins that explore analogue breakdown, malfunction, and haunted calibration aesthetics. To put another way, if they were a hotel, they'd be the kind that Gordon Ramsay visits and, for reasons unknown, insists on baring his bum in... Created using JUCE.
 
 ## Plugins
 
