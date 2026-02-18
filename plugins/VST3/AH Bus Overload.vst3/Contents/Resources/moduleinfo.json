@@ -1,0 +1,46 @@
+{
+  "Name": "AH Bus Overload",
+  "Version": "0.1.0",
+  "Factory Info": {
+    "Vendor": "Analogue Hell",
+    "URL": "",
+    "E-Mail": "",
+    "Flags": {
+      "Unicode": true,
+      "Classes Discardable": false,
+      "Component Non Discardable": false,
+    },
+  },
+  "Classes": [
+    {
+      "CID": "ABCDEF019182FAEB41484C4C41424F36",
+      "Category": "Audio Module Class",
+      "Name": "AH Bus Overload",
+      "Vendor": "Analogue Hell",
+      "Version": "0.1.0",
+      "SDKVersion": "VST 3.8.0",
+      "Sub Categories": [
+        "Fx",
+      ],
+      "Class Flags": 0,
+      "Cardinality": 2147483647,
+      "Snapshots": [
+      ],
+    },
+    {
+      "CID": "ABCDEF011234ABCD41484C4C41424F36",
+      "Category": "Component Controller Class",
+      "Name": "AH Bus Overload",
+      "Vendor": "Analogue Hell",
+      "Version": "0.1.0",
+      "SDKVersion": "VST 3.8.0",
+      "Sub Categories": [
+        "Fx",
+      ],
+      "Class Flags": 0,
+      "Cardinality": 2147483647,
+      "Snapshots": [
+      ],
+    },
+  ],
+}
