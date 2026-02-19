@@ -41,8 +41,8 @@ public:
                           float rotaryEndAngle, juce::Slider&) override
     {
         // Keep rotary graphics in the upper region so they align with the knob body, not the text box.
-        auto bounds = juce::Rectangle<float>(x, y, (float) width, (float) height * 0.72f).reduced(10.0f, 8.0f);
-        const float ovalH = juce::jmin(82.0f, bounds.getHeight() * 0.56f);
+        auto bounds = juce::Rectangle<float>(x, y, (float) width, (float) height * 0.82f).reduced(8.0f, 6.0f);
+        const float ovalH = juce::jmin(123.0f, bounds.getHeight() * 0.84f);
         auto body = juce::Rectangle<float>(bounds.getX(), bounds.getCentreY() - ovalH * 0.50f, bounds.getWidth(), ovalH);
 
         g.setColour(juce::Colours::black.withAlpha(0.35f));
@@ -58,7 +58,7 @@ public:
         g.setColour(juce::Colours::white.withAlpha(0.06f));
         g.drawRoundedRectangle(body.reduced(1.5f), body.getHeight() * 0.5f, 1.2f);
 
-        const float knobRadius = inner.getHeight() * 0.8f;
+        const float knobRadius = inner.getHeight() * 1.02f;
         auto dial = juce::Rectangle<float>(inner.getCentreX() - knobRadius, inner.getCentreY() - knobRadius, knobRadius * 2.0f, knobRadius * 2.0f);
 
         const float angle = rotaryStartAngle + sliderPosProportional * (rotaryEndAngle - rotaryStartAngle);
@@ -165,13 +165,6 @@ AnalogueHellAudioProcessorEditor::AnalogueHellAudioProcessorEditor(AnalogueHellA
     prevPreset.onClick = [this] { selectPresetRelative(-1); };
     nextPreset.onClick = [this] { selectPresetRelative(1); };
 
-    reactiveToggle.setClickingTogglesState(true);
-    reactiveToggle.setColour(juce::ToggleButton::textColourId, theme.textBright);
-    reactiveToggle.setColour(juce::ToggleButton::tickColourId, theme.accent);
-    reactiveToggle.setColour(juce::ToggleButton::tickDisabledColourId, theme.textDim.withAlpha(0.6f));
-    addAndMakeVisible(reactiveToggle);
-    reactiveAttachment = std::make_unique<ButtonAttach>(processorRef.getAPVTS(), "reactive", reactiveToggle);
-
     addSlider(drive, driveL, "drive", "Drive");
     addSlider(depth, depthL, "depth", "Depth");
     addSlider(character, characterL, "character", "Character");
@@ -220,16 +213,6 @@ void AnalogueHellAudioProcessorEditor::paint(juce::Graphics& g)
     g.setColour(juce::Colours::white.withAlpha(0.09f));
     g.drawLine(0.0f, topStrip.getBottom(), (float) getWidth(), topStrip.getBottom(), 1.0f);
 
-    auto hostRow = topStrip.reduced(16.0f, 0.0f).removeFromTop(34.0f);
-    g.setColour(juce::Colour::fromRGB(255, 88, 83));
-    g.fillEllipse(hostRow.getX() + 2.0f, hostRow.getY() + 8.0f, 12.0f, 12.0f);
-    g.setColour(theme.textBright.withAlpha(0.95f));
-    g.setFont(juce::FontOptions(22.0f, juce::Font::bold));
-    g.drawFittedText("Stereo Out", getLocalBounds().removeFromTop(36), juce::Justification::centred, 1);
-
-    g.setFont(juce::FontOptions(16.0f, juce::Font::plain));
-    g.drawFittedText("View:  Editor", getLocalBounds().removeFromTop(68).removeFromRight(160), juce::Justification::centredLeft, 1);
-
     auto mainPanel = bounds.reduced(14.0f, 10.0f);
     g.setColour(theme.panelBg.withAlpha(0.96f));
     g.fillRoundedRectangle(mainPanel, 22.0f);
@@ -242,12 +225,9 @@ void AnalogueHellAudioProcessorEditor::paint(juce::Graphics& g)
     g.setColour(theme.accent.withAlpha(0.18f));
     g.fillRoundedRectangle(mainPanel.reduced(10.0f).removeFromTop(102.0f), 12.0f);
 
-    g.setColour(juce::Colours::black.withAlpha(0.08f));
+    g.setColour(juce::Colours::black.withAlpha(0.03f));
     for (int x = 0; x < getWidth(); x += 8)
         g.drawVerticalLine(x, 78.0f, (float) getHeight() - 40.0f);
-
-    g.setColour(juce::Colours::black.withAlpha(0.35f));
-    g.fillRoundedRectangle(mainPanel.removeFromBottom(36.0f), 0.0f);
 
 }
 
@@ -255,24 +235,25 @@ void AnalogueHellAudioProcessorEditor::resized()
 {
     auto area = getLocalBounds();
     area.removeFromTop(74);
-    area.removeFromBottom(36);
 
     auto panel = area.reduced(14, 10);
-    auto top = panel.reduced(18, 14).removeFromTop(100);
+    auto top = panel.reduced(18, 14).removeFromTop(108);
 
     auto titleArea = top.removeFromLeft((int) std::round((float) panel.getWidth() * 0.42f));
     pluginTitle.setBounds(titleArea.removeFromTop(52));
     pluginSubtitle.setBounds(titleArea.removeFromTop(24));
 
     auto nav = top;
+    nav.removeFromTop(27);
     auto navRow = nav.removeFromTop(40);
-    prevPreset.setBounds(navRow.removeFromLeft(34));
-    navRow.removeFromLeft(8);
-    presetBox.setBounds(navRow.removeFromLeft(270));
-    navRow.removeFromLeft(8);
-    nextPreset.setBounds(navRow.removeFromLeft(34));
-    navRow.removeFromLeft(14);
-    reactiveToggle.setBounds(navRow.removeFromLeft(110));
+    const int presetW = 320;
+    const int navGroupW = 34 + 8 + presetW + 8 + 34;
+    auto centeredNav = navRow.withSizeKeepingCentre(navGroupW, 40);
+    prevPreset.setBounds(centeredNav.removeFromLeft(34));
+    centeredNav.removeFromLeft(8);
+    presetBox.setBounds(centeredNav.removeFromLeft(presetW));
+    centeredNav.removeFromLeft(8);
+    nextPreset.setBounds(centeredNav.removeFromLeft(34));
 
     auto body = panel.reduced(18, 14);
     body.removeFromTop(112);
@@ -299,6 +280,7 @@ void AnalogueHellAudioProcessorEditor::resized()
         labels[(size_t) (i + 4)]->setBounds(cell.removeFromTop(22));
         sliders[(size_t) (i + 4)]->setBounds(cell);
     }
+
 }
 
 void AnalogueHellAudioProcessorEditor::addSlider(juce::Slider& slider,

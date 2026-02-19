@@ -36,15 +36,12 @@ private:
     juce::ComboBox presetBox;
     juce::TextButton prevPreset { "<" };
     juce::TextButton nextPreset { ">" };
-    juce::ToggleButton reactiveToggle { "Reactive" };
 
     std::array<juce::Slider*, 8> sliders;
     std::array<juce::Label*, 8> labels;
 
     using Attach = juce::AudioProcessorValueTreeState::SliderAttachment;
-    using ButtonAttach = juce::AudioProcessorValueTreeState::ButtonAttachment;
     std::vector<std::unique_ptr<Attach>> attachments;
-    std::unique_ptr<ButtonAttach> reactiveAttachment;
 
     std::unique_ptr<HellLookAndFeel> lookAndFeel;
     std::vector<Preset> presets;
