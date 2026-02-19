@@ -3,6 +3,7 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_core/juce_core.h>
 #include <array>
+#include <cmath>
 
 namespace ah
 {
@@ -16,6 +17,7 @@ struct Params
     float noise = 0.2f;
     float unstable = 0.5f;
     float stereo = 0.5f;
+    float reactive = 0.0f;
 };
 
 struct ChannelState
@@ -32,6 +34,7 @@ struct ChannelState
     float sampleHold = 0.0f;
     float sampleHoldPhase = 0.0f;
     float noiseGate = 0.0f;
+    float reactiveEnv = 0.0f;
     float crosstalkMemory = 0.0f;
     float filterState = 0.0f;
     float filterBand = 0.0f;
@@ -70,30 +73,49 @@ public:
 
             for (int i = 0; i < numSamples; ++i)
             {
-                const float dry = data[i];
+                const float dry = safe(data[i]);
                 const float n = (rng.nextFloat() * 2.0f - 1.0f);
-                s.randomWalk = juce::jlimit(-1.0f, 1.0f, s.randomWalk * 0.9995f + n * 0.003f * p.unstable);
+
+                Params rp = p;
+                if (p.reactive > 0.5f)
+                {
+                    // Shared audio-reactive envelope used to push behavior with input dynamics.
+                    const float level = std::abs(dry);
+                    s.reactiveEnv = 0.9975f * s.reactiveEnv + 0.0025f * level;
+                    const float react = juce::jlimit(0.0f, 1.0f, s.reactiveEnv * 3.2f + level * 1.2f);
+
+                    rp.drive = juce::jlimit(0.0f, 1.0f, p.drive * (0.86f + 0.55f * react));
+                    rp.depth = juce::jlimit(0.0f, 1.0f, p.depth + (1.0f - p.depth) * 0.35f * react);
+                    rp.rateHz = juce::jlimit(0.01f, 10.0f, p.rateHz * (0.92f + 0.75f * react));
+                    rp.character = juce::jlimit(0.0f, 1.0f, p.character + (1.0f - p.character) * 0.18f * react);
+                    rp.noise = juce::jlimit(0.0f, 1.0f, p.noise + 0.16f * react);
+                    rp.unstable = juce::jlimit(0.0f, 1.0f, p.unstable + 0.22f * react);
+                    rp.stereo = p.stereo;
+                }
+
+                s.randomWalk = juce::jlimit(-1.0f, 1.0f, s.randomWalk * 0.9995f + n * 0.003f * rp.unstable);
 
                 float wet = dry;
 
                 switch (modelId)
                 {
-                    case 1: wet = processTape(dry, p, s, side, n); break;
-                    case 2: wet = processBbd(dry, p, s, side, n); break;
-                    case 3: wet = processCore(dry, p, s, side, n); break;
-                    case 4: wet = processTube(dry, p, s, side, n); break;
-                    case 5: wet = processFuzz(dry, p, s, side, n); break;
-                    case 6: wet = processBus(dry, p, s, side, n); break;
-                    case 7: wet = processFilter(dry, p, s, side, n); break;
-                    case 8: wet = processSpring(dry, p, s, side, n); break;
-                    case 9: wet = processVinyl(dry, p, s, side, n); break;
-                    case 10: wet = processCalLab(dry, p, s, side, n); break;
+                    case 1: wet = processTape(dry, rp, s, side, n); break;
+                    case 2: wet = processBbd(dry, rp, s, side, n); break;
+                    case 3: wet = processCore(dry, rp, s, side, n); break;
+                    case 4: wet = processTube(dry, rp, s, side, n); break;
+                    case 5: wet = processFuzz(dry, rp, s, side, n); break;
+                    case 6: wet = processBus(dry, rp, s, side, n); break;
+                    case 7: wet = processFilter(dry, rp, s, side, n); break;
+                    case 8: wet = processSpring(dry, rp, s, side, n); break;
+                    case 9: wet = processVinyl(dry, rp, s, side, n); break;
+                    case 10: wet = processCalLab(dry, rp, s, side, n); break;
                     default: wet = dry; break;
                 }
 
+                wet = safe(wet);
                 float out = dry + (wet - dry) * p.mix;
                 out *= getModelOutputTrim(modelId);
-                data[i] = juce::jlimit(-1.0f, 1.0f, out);
+                data[i] = juce::jlimit(-1.0f, 1.0f, safe(out));
             }
         }
 
@@ -115,6 +137,11 @@ public:
     }
 
 private:
+    static float safe(float v)
+    {
+        return std::isfinite(v) ? v : 0.0f;
+    }
+
     float getModelOutputTrim(int modelId) const
     {
         switch (modelId)
@@ -135,12 +162,13 @@ private:
 
     float processTape(float x, const Params& p, ChannelState& s, float side, float n)
     {
-        const float bias = (p.character - 0.5f) * 1.3f + s.randomWalk * 0.2f;
+        const float rateNorm = p.rateHz / 10.0f;
+        const float bias = (p.character - 0.5f) * 1.9f + s.randomWalk * 0.35f;
         s.memory = s.memory * 0.995f + x * 0.005f;
         s.hysteresis = 0.985f * s.hysteresis + 0.015f * (x - s.memory);
 
-        s.wowPhaseA += (0.12f + p.rateHz * 0.2f) / fs;
-        s.wowPhaseB += (0.03f + p.rateHz * 0.09f) / fs;
+        s.wowPhaseA += (0.07f + 2.1f * rateNorm) / fs;
+        s.wowPhaseB += (0.02f + 1.2f * rateNorm) / fs;
         if (s.wowPhaseA > 1.0f) s.wowPhaseA -= 1.0f;
         if (s.wowPhaseB > 1.0f) s.wowPhaseB -= 1.0f;
         const float wow = std::sin(juce::MathConstants<float>::twoPi * s.wowPhaseA)
@@ -151,21 +179,21 @@ private:
             s.flutterBurst = 1.0f;
 
         const float flutter = s.flutterBurst * std::sin(juce::MathConstants<float>::twoPi * (70.0f / fs) * sampleCounter++);
-        const float speed = 1.0f + 0.012f * p.depth * wow + 0.008f * flutter;
+        const float speed = 1.0f + (0.006f + 0.030f * p.depth) * wow + (0.002f + 0.016f * p.unstable) * flutter;
 
         float y = x * speed;
-        y -= y * juce::jlimit(0.0f, 0.85f, (0.5f - p.character) * 0.75f + 0.15f * std::abs(y));
-        y = std::tanh((y + bias + s.hysteresis * 0.4f) * (1.0f + p.drive * 7.0f));
+        y -= y * juce::jlimit(0.0f, 0.92f, (0.5f - p.character) * 1.05f + 0.22f * std::abs(y));
+        y = std::tanh((y + bias + s.hysteresis * 0.6f) * (1.0f + p.drive * 9.0f));
 
-        const int preDelay = 90;
+        const int preDelay = 52 + (int) std::round((1.0f - p.depth) * 120.0f);
         const int idx = s.ghostIndex;
         const int ghostRead = (idx + 128 - preDelay) % 128;
-        const float ghost = s.ghostDelay[ghostRead] * (0.06f + p.depth * 0.08f);
+        const float ghost = s.ghostDelay[ghostRead] * (0.03f + p.depth * 0.18f + p.unstable * 0.08f);
         s.ghostDelay[idx] = x;
         s.ghostIndex = (idx + 1) % 128;
 
-        const float spliceTick = (std::abs(n) > 0.998f && p.unstable > 0.65f) ? (0.02f * n) : 0.0f;
-        return y + ghost + spliceTick + n * p.noise * 0.02f;
+        const float spliceTick = (std::abs(n) > (0.9992f - 0.0015f * p.unstable) && p.unstable > 0.35f) ? ((0.01f + 0.05f * p.unstable) * n) : 0.0f;
+        return y + ghost + spliceTick + n * p.noise * (0.006f + 0.040f * p.unstable);
     }
 
     float processBbd(float x, const Params& p, ChannelState& s, float side, float n)
@@ -271,64 +299,112 @@ private:
 
     float processBus(float x, const Params& p, ChannelState& s, float side, float n)
     {
-        const float target = x * (1.0f + p.drive * 10.0f);
-        const float slew = 0.003f + 0.15f * (1.0f - p.character);
+        const float rateNorm = p.rateHz / 10.0f;
+        const float target = x * (1.0f + p.drive * (6.0f + 12.0f * p.depth));
+        const float slew = juce::jlimit(0.0008f, 0.18f, 0.0012f + 0.17f * (1.0f - p.character) * (1.0f - 0.55f * rateNorm));
         const float delta = juce::jlimit(-slew, slew, target - s.memory);
         s.memory += delta;
 
-        s.crosstalkMemory = 0.995f * s.crosstalkMemory + 0.005f * (s.memory + side * 0.05f);
-        float y = s.memory + s.crosstalkMemory * (0.01f + p.stereo * 0.03f);
-        y = std::tanh(y);
-        y += n * p.noise * 0.007f;
+        const float interstage = std::tanh((s.memory + 0.22f * std::sin((2.0f + 8.0f * p.depth) * s.memory)) * (0.85f + 1.35f * p.drive));
+        s.crosstalkMemory = (0.989f - 0.012f * p.depth) * s.crosstalkMemory + (0.011f + 0.020f * p.depth) * (interstage + side * (0.04f + 0.18f * p.stereo));
+        float y = interstage + s.crosstalkMemory * (0.02f + p.stereo * 0.09f);
+        y = std::tanh(y * (0.95f + 0.90f * p.drive));
+        y += n * p.noise * (0.003f + 0.02f * p.depth);
         return y;
     }
 
     float processFilter(float x, const Params& p, ChannelState& s, float side, float n)
     {
-        const float f = juce::jlimit(0.001f, 0.35f,
-                                     (0.01f + 0.18f * p.rateHz / 10.0f) * (1.0f + side * 0.08f + n * p.unstable * 0.01f));
-        const float q = 0.2f + p.drive * 2.7f;
+        // In model 7, the "noise" macro is repurposed as cutoff frequency.
+        const float cutoffHz = juce::jmap(p.noise * p.noise, 35.0f, 14000.0f);
+        const float baseF = 2.0f * std::sin(juce::MathConstants<float>::pi * cutoffHz / fs);
+        const float mode = p.character;
+        const float rateNorm = p.rateHz / 10.0f;
+        const float mod = 1.0f + 0.65f * (rateNorm - 0.5f) + side * 0.12f + n * mode * 0.05f;
+        const float f = juce::jlimit(0.001f, 0.47f, baseF * mod);
+        const float q = juce::jlimit(0.08f, 3.6f, 0.10f + p.drive * 2.2f + mode * 0.7f + p.unstable * 2.2f);
 
-        s.filterBand += f * (x - s.filterState - q * s.filterBand);
+        const float in = std::tanh((x + 0.18f * std::sin(8.0f * x + side)) * (1.0f + p.drive * 6.5f));
+        s.filterBand += f * (in - s.filterState - q * s.filterBand);
         s.filterState += f * s.filterBand;
+        s.filterBand = juce::jlimit(-8.0f, 8.0f, safe(s.filterBand));
+        s.filterState = juce::jlimit(-8.0f, 8.0f, safe(s.filterState));
 
         s.selfOsc = 0.9995f * s.selfOsc + 0.0005f * std::sin(2.0f * juce::MathConstants<float>::pi * 440.0f * sampleCounter / fs);
-        const float ringing = (p.character > 0.7f ? s.selfOsc * (p.character - 0.7f) * 2.5f : 0.0f);
+        const float ringing = (mode > 0.62f ? s.selfOsc * (mode - 0.62f) * 3.8f : 0.0f);
 
-        return std::tanh((s.filterState + ringing) * (1.0f + p.depth * 4.0f)) + n * p.noise * 0.008f;
+        const float lp = s.filterState;
+        const float bp = s.filterBand;
+        const float hp = in - lp - q * bp;
+
+        // Morph modes: low -> band -> high with nonlinear emphasis.
+        float y;
+        if (mode < 0.33f)
+            y = juce::jmap(mode / 0.33f, lp, bp * (1.2f + p.depth * 0.8f));
+        else if (mode < 0.66f)
+            y = juce::jmap((mode - 0.33f) / 0.33f, bp * (1.2f + p.depth * 0.8f), hp * (0.9f + p.drive * 0.7f));
+        else
+            y = juce::jmap((mode - 0.66f) / 0.34f, hp * (0.9f + p.drive * 0.7f), (lp + hp) * 0.5f + bp * 1.6f);
+
+        // Dirty stages: saturate then light foldback for broken-analogue edge.
+        const float driveShape = 1.0f + p.depth * 6.5f + p.drive * 4.0f + p.unstable * 1.5f;
+        y = std::tanh((y + ringing) * driveShape);
+        const float foldAmt = 0.05f + 0.35f * p.drive + 0.25f * mode;
+        const float z = y * (1.0f + foldAmt * 2.0f);
+        const float folded = std::asin(std::sin(z * juce::MathConstants<float>::pi)) / juce::MathConstants<float>::halfPi;
+        y = juce::jmap(foldAmt, y, folded);
+        y += n * mode * (0.003f + 0.016f * p.unstable);
+        y = safe(y);
+        if (! std::isfinite(y))
+        {
+            s.filterBand = 0.0f;
+            s.filterState = 0.0f;
+            return 0.0f;
+        }
+        return juce::jlimit(-1.0f, 1.0f, y);
     }
 
     float processSpring(float x, const Params& p, ChannelState& s, float side, float n)
     {
-        const float decay = 0.985f + p.character * 0.012f;
-        s.filterBand = decay * s.filterBand + x * (0.05f + 0.18f * p.depth);
-        s.filterState = 0.97f * s.filterState + s.filterBand;
+        const float rateNorm = p.rateHz / 10.0f;
+        const float decay = juce::jlimit(0.93f, 0.9992f, 0.956f + p.character * 0.035f + rateNorm * 0.010f);
+        s.filterBand = decay * s.filterBand + x * (0.07f + 0.32f * p.depth);
+        s.filterState = (0.90f + 0.08f * p.character) * s.filterState + s.filterBand;
 
-        const float boing = std::sin((180.0f + 2200.0f * std::abs(x)) * sampleCounter / fs + side) * (0.03f + p.drive * 0.1f);
-        const float crash = (std::abs(x) > 0.95f && p.unstable > 0.5f) ? n * 0.2f : 0.0f;
+        const float boingHz = 120.0f + 2600.0f * (0.10f + 0.90f * p.depth) * (0.30f + 1.40f * rateNorm);
+        const float boing = std::sin(2.0f * juce::MathConstants<float>::pi * boingHz * sampleCounter / fs + side)
+                          * (0.04f + p.drive * 0.22f);
+        const float crash = (std::abs(x) > (0.68f - 0.22f * p.unstable) && p.unstable > 0.35f) ? (n * (0.05f + 0.35f * p.unstable)) : 0.0f;
 
         float y = s.filterState + boing + crash;
-        y += n * (0.001f + p.noise * 0.02f);
-        y += 0.01f * std::sin(2.0f * juce::MathConstants<float>::pi * 50.0f * sampleCounter / fs);
-        return std::tanh(y * 1.4f);
+        y += n * (0.0015f + p.noise * 0.055f);
+        y += (0.004f + 0.028f * p.noise) * std::sin(2.0f * juce::MathConstants<float>::pi * (42.0f + 45.0f * p.character) * sampleCounter / fs);
+        return std::tanh(y * (1.15f + 1.35f * p.drive));
     }
 
     float processVinyl(float x, const Params& p, ChannelState& s, float side, float n)
     {
-        s.wowPhaseA += (0.55f / fs);
+        const float rateNorm = p.rateHz / 10.0f;
+        s.wowPhaseA += (0.12f + 1.10f * rateNorm) / fs;
         if (s.wowPhaseA > 1.0f)
             s.wowPhaseA -= 1.0f;
 
-        const float offCenter = std::sin(juce::MathConstants<float>::twoPi * s.wowPhaseA + side) * 0.02f * p.depth;
-        const float rumbleIn = std::sin(2.0f * juce::MathConstants<float>::pi * 27.0f * sampleCounter / fs + side) * 0.03f;
-        s.rumble = 0.995f * s.rumble + 0.005f * rumbleIn;
+        const float wow = std::sin(juce::MathConstants<float>::twoPi * s.wowPhaseA + side);
+        const float flutter = std::sin(juce::MathConstants<float>::twoPi * (2.0f * s.wowPhaseA + 0.17f) - side * 0.3f);
+        const float offCenter = (wow * 0.018f + flutter * 0.010f) * (0.25f + 1.35f * p.depth);
 
-        const float pinch = juce::jlimit(0.0f, 0.95f, p.character * 0.7f + std::abs(x) * 0.35f);
-        float y = std::tanh((x + offCenter) * (1.0f + p.drive * 5.0f));
-        y -= y * pinch * 0.25f;
+        const float rumbleIn = std::sin(2.0f * juce::MathConstants<float>::pi * (16.0f + 40.0f * rateNorm) * sampleCounter / fs + side)
+                             * (0.01f + 0.07f * p.noise);
+        s.rumble = (0.992f - 0.006f * p.depth) * s.rumble + (0.008f + 0.006f * p.depth) * rumbleIn;
 
-        const float staticBurst = (std::abs(n) > 0.998f ? n * 0.15f : 0.0f);
-        return y + s.rumble + staticBurst + n * p.noise * 0.01f;
+        const float pinch = juce::jlimit(0.0f, 0.98f, p.character * 0.82f + std::abs(x) * (0.20f + 0.60f * p.unstable));
+        float y = std::tanh((x + offCenter) * (1.0f + p.drive * 7.5f));
+        y -= y * pinch * (0.08f + 0.34f * p.character);
+
+        const float staticThreshold = 0.9992f - 0.015f * p.unstable;
+        const float staticBurst = (std::abs(n) > staticThreshold ? n * (0.08f + 0.35f * p.unstable) : 0.0f);
+        y += std::sin(2.0f * juce::MathConstants<float>::pi * (1800.0f + 4200.0f * p.character) * sampleCounter / fs) * (0.004f + 0.03f * p.character * p.depth);
+        return y + s.rumble + staticBurst + n * p.noise * (0.003f + 0.025f * p.unstable);
     }
 
     float processCalLab(float x, const Params& p, ChannelState& s, float side, float n)
@@ -341,11 +417,22 @@ private:
         const float triangle = 2.0f * std::abs(2.0f * s.wowPhaseA - 1.0f) - 1.0f;
         const float source = juce::jmap(p.character, vco, triangle);
 
-        const float am = x * (1.0f + source * (0.1f + p.depth * 0.7f));
-        const float fmGhost = std::sin((1200.0f + 800.0f * source) * sampleCounter / fs + side) * 0.05f;
-        const float heterodyne = std::sin((2200.0f + 400.0f * n) * sampleCounter / fs) * (0.02f + p.noise * 0.08f);
+        const float t = (float) (sampleCounter++);
+        const float amDepth = 0.25f + p.depth * 0.95f;
+        const float am = x * (1.0f + source * amDepth);
 
-        return std::tanh((am + fmGhost + heterodyne) * (1.0f + p.drive * 2.0f));
+        const float carrierHz = 900.0f + 2600.0f * p.rateHz / 10.0f;
+        const float modHz = 80.0f + 1200.0f * (0.5f + 0.5f * source);
+        const float fmPhase = juce::MathConstants<float>::twoPi * (carrierHz * t / fs + 0.00022f * modHz * std::sin(juce::MathConstants<float>::twoPi * modHz * t / fs));
+        const float fmGhost = std::sin(fmPhase + side * 0.25f) * (0.08f + p.unstable * 0.16f);
+
+        const float lo = std::sin(juce::MathConstants<float>::twoPi * (1600.0f + 2800.0f * p.character) * t / fs);
+        const float rf = std::sin(juce::MathConstants<float>::twoPi * (2100.0f + 3400.0f * (0.5f + 0.5f * n)) * t / fs);
+        const float heterodyne = (lo * rf) * (0.04f + p.noise * 0.22f);
+
+        float y = am + fmGhost + heterodyne;
+        y += std::sin(juce::MathConstants<float>::twoPi * (carrierHz * 0.5f) * t / fs + side) * 0.03f * p.depth;
+        return std::tanh(y * (1.4f + p.drive * 3.8f));
     }
 
     float fs = 44100.0f;

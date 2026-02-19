@@ -69,6 +69,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AnalogueHellAudioProcessor::
     p.push_back(std::make_unique<Param>("noise", "Noise", 0.0f, 1.0f, 0.25f));
     p.push_back(std::make_unique<Param>("unstable", "Unstable", 0.0f, 1.0f, 0.45f));
     p.push_back(std::make_unique<Param>("stereo", "Stereo", 0.0f, 1.0f, 0.5f));
+    p.push_back(std::make_unique<juce::AudioParameterBool>("reactive", "Reactive", false));
 
     return { p.begin(), p.end() };
 }
@@ -86,6 +87,7 @@ ah::Params AnalogueHellAudioProcessor::getParams() const
     p.noise = value("noise");
     p.unstable = value("unstable");
     p.stereo = value("stereo");
+    p.reactive = value("reactive");
     return p;
 }
 

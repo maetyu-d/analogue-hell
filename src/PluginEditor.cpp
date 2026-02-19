@@ -165,6 +165,13 @@ AnalogueHellAudioProcessorEditor::AnalogueHellAudioProcessorEditor(AnalogueHellA
     prevPreset.onClick = [this] { selectPresetRelative(-1); };
     nextPreset.onClick = [this] { selectPresetRelative(1); };
 
+    reactiveToggle.setClickingTogglesState(true);
+    reactiveToggle.setColour(juce::ToggleButton::textColourId, theme.textBright);
+    reactiveToggle.setColour(juce::ToggleButton::tickColourId, theme.accent);
+    reactiveToggle.setColour(juce::ToggleButton::tickDisabledColourId, theme.textDim.withAlpha(0.6f));
+    addAndMakeVisible(reactiveToggle);
+    reactiveAttachment = std::make_unique<ButtonAttach>(processorRef.getAPVTS(), "reactive", reactiveToggle);
+
     addSlider(drive, driveL, "drive", "Drive");
     addSlider(depth, depthL, "depth", "Depth");
     addSlider(character, characterL, "character", "Character");
@@ -174,6 +181,12 @@ AnalogueHellAudioProcessorEditor::AnalogueHellAudioProcessorEditor(AnalogueHellA
     addSlider(noise, noiseL, "noise", "Noise");
     addSlider(unstable, unstableL, "unstable", "Unstable");
     addSlider(stereo, stereoL, "stereo", "Stereo");
+
+    if (processorRef.getModelId() == 7)
+    {
+        noiseL.setText("Cutoff", juce::dontSendNotification);
+        unstableL.setText("Resonance", juce::dontSendNotification);
+    }
 
     buildPresetMenu();
     presetChangeInternal = true;
@@ -258,6 +271,8 @@ void AnalogueHellAudioProcessorEditor::resized()
     presetBox.setBounds(navRow.removeFromLeft(270));
     navRow.removeFromLeft(8);
     nextPreset.setBounds(navRow.removeFromLeft(34));
+    navRow.removeFromLeft(14);
+    reactiveToggle.setBounds(navRow.removeFromLeft(110));
 
     auto body = panel.reduced(18, 14);
     body.removeFromTop(112);
@@ -328,16 +343,16 @@ void AnalogueHellAudioProcessorEditor::buildPresetMenu()
     switch (processorRef.getModelId())
     {
         case 1: // Tape System
-            add("Miscalibrated Reel", 0.52f, 1.00f, 0.50f, 1.40f, 0.47f, 0.22f, 0.42f, 0.50f);
-            add("Worn Leader", 0.68f, 0.94f, 0.63f, 0.82f, 0.41f, 0.26f, 0.58f, 0.62f);
-            add("Ghost Print", 0.44f, 0.96f, 0.74f, 0.45f, 0.38f, 0.29f, 0.66f, 0.54f);
-            add("Scrape Flutter", 0.57f, 0.90f, 0.88f, 3.20f, 0.52f, 0.33f, 0.84f, 0.68f);
-            add("Splice Panic", 0.63f, 0.86f, 0.70f, 2.50f, 0.58f, 0.41f, 0.90f, 0.72f);
-            add("Slow Oxide Melt", 0.77f, 0.78f, 0.36f, 0.21f, 0.65f, 0.19f, 0.28f, 0.44f);
-            add("Azimuth Drift", 0.49f, 0.93f, 0.55f, 1.85f, 0.43f, 0.24f, 0.62f, 0.80f);
-            add("Underbiased Hit", 0.84f, 0.81f, 0.47f, 0.74f, 0.25f, 0.16f, 0.30f, 0.49f);
-            add("Overbiased Fog", 0.39f, 0.97f, 0.66f, 0.52f, 0.79f, 0.22f, 0.47f, 0.45f);
-            add("Haunted Master Bus", 0.58f, 0.87f, 0.60f, 1.10f, 0.51f, 0.30f, 0.73f, 0.63f);
+            add("Miscalibrated Reel", 0.48f, 0.64f, 0.22f, 0.40f, 0.18f, 0.08f, 0.22f, 0.36f);
+            add("Worn Leader", 0.62f, 0.78f, 0.48f, 0.95f, 0.34f, 0.16f, 0.42f, 0.58f);
+            add("Ghost Print", 0.38f, 0.70f, 0.82f, 0.30f, 0.46f, 0.22f, 0.56f, 0.52f);
+            add("Scrape Flutter", 0.72f, 0.86f, 0.94f, 6.80f, 0.58f, 0.30f, 0.90f, 0.70f);
+            add("Splice Panic", 0.78f, 0.92f, 0.72f, 4.20f, 0.66f, 0.44f, 1.00f, 0.76f);
+            add("Slow Oxide Melt", 0.90f, 0.74f, 0.18f, 0.12f, 0.86f, 0.10f, 0.18f, 0.42f);
+            add("Azimuth Drift", 0.56f, 0.80f, 0.64f, 2.60f, 0.40f, 0.18f, 0.52f, 1.00f);
+            add("Underbiased Hit", 0.98f, 0.84f, 0.40f, 1.40f, 0.06f, 0.08f, 0.26f, 0.34f);
+            add("Overbiased Fog", 0.30f, 0.88f, 0.70f, 0.24f, 1.00f, 0.14f, 0.36f, 0.40f);
+            add("Haunted Master Bus", 0.66f, 0.98f, 0.90f, 2.10f, 0.62f, 0.34f, 0.86f, 0.80f);
             break;
         case 2: // BBD Grime
             add("Clock Leak", 0.46f, 1.00f, 0.78f, 5.20f, 0.52f, 0.36f, 0.70f, 0.55f);
@@ -388,52 +403,52 @@ void AnalogueHellAudioProcessorEditor::buildPresetMenu()
             add("Knife Edge Mono", 0.81f, 0.84f, 0.37f, 0.63f, 0.69f, 0.07f, 0.33f, 0.12f);
             break;
         case 6: // Bus Overload
-            add("Overdriven Summing", 0.63f, 0.94f, 0.40f, 0.60f, 0.57f, 0.10f, 0.34f, 0.55f);
-            add("Slew Flatten", 0.78f, 0.84f, 0.33f, 0.95f, 0.72f, 0.12f, 0.39f, 0.48f);
-            add("Interstage Crunch", 0.69f, 0.86f, 0.58f, 1.40f, 0.66f, 0.16f, 0.47f, 0.60f);
-            add("Bleed Bus", 0.48f, 0.96f, 0.52f, 0.52f, 0.44f, 0.11f, 0.31f, 0.78f);
-            add("Redline Glue", 0.74f, 0.82f, 0.36f, 0.34f, 0.63f, 0.09f, 0.27f, 0.50f);
-            add("Ghost Crosstalk", 0.56f, 0.90f, 0.67f, 1.10f, 0.50f, 0.13f, 0.65f, 0.85f);
-            add("Desk Meltdown", 0.86f, 0.72f, 0.61f, 1.75f, 0.79f, 0.18f, 0.58f, 0.62f);
-            add("Saturated Sends", 0.67f, 0.83f, 0.49f, 0.88f, 0.69f, 0.14f, 0.44f, 0.59f);
-            add("Wide Bus Film", 0.52f, 0.93f, 0.45f, 0.42f, 0.46f, 0.08f, 0.29f, 0.88f);
-            add("Master Push", 0.71f, 0.87f, 0.41f, 0.64f, 0.61f, 0.09f, 0.36f, 0.57f);
+            add("Overdriven Summing", 0.58f, 0.66f, 0.28f, 0.48f, 0.44f, 0.06f, 0.18f, 0.34f);
+            add("Slew Flatten", 0.92f, 0.86f, 0.72f, 0.26f, 0.18f, 0.10f, 0.22f, 0.28f);
+            add("Interstage Crunch", 0.78f, 0.80f, 0.76f, 1.70f, 0.62f, 0.18f, 0.51f, 0.54f);
+            add("Bleed Bus", 0.42f, 0.64f, 0.44f, 0.40f, 0.70f, 0.08f, 0.20f, 0.98f);
+            add("Redline Glue", 0.84f, 0.72f, 0.56f, 0.20f, 0.36f, 0.06f, 0.12f, 0.46f);
+            add("Ghost Crosstalk", 0.52f, 0.74f, 0.82f, 1.20f, 0.58f, 0.20f, 0.62f, 1.00f);
+            add("Desk Meltdown", 0.98f, 0.90f, 0.92f, 3.40f, 0.24f, 0.32f, 0.94f, 0.70f);
+            add("Saturated Sends", 0.74f, 0.78f, 0.66f, 1.10f, 0.56f, 0.14f, 0.40f, 0.50f);
+            add("Wide Bus Film", 0.48f, 0.82f, 0.38f, 0.72f, 0.64f, 0.07f, 0.18f, 1.00f);
+            add("Master Push", 0.88f, 0.84f, 0.64f, 0.92f, 0.40f, 0.09f, 0.34f, 0.52f);
             break;
         case 7: // Unstable Filter
-            add("Near SelfOsc", 0.61f, 0.93f, 0.64f, 2.20f, 0.82f, 0.10f, 0.58f, 0.56f);
-            add("Thermal Sweep", 0.48f, 0.96f, 0.72f, 3.60f, 0.54f, 0.16f, 0.74f, 0.66f);
-            add("Instance Mismatch", 0.55f, 0.91f, 0.51f, 1.40f, 0.63f, 0.11f, 0.62f, 0.91f);
-            add("Transient Ring", 0.69f, 0.86f, 0.44f, 0.88f, 0.77f, 0.09f, 0.43f, 0.48f);
-            add("Noisy Cutoff", 0.52f, 0.90f, 0.57f, 4.80f, 0.58f, 0.22f, 0.86f, 0.69f);
-            add("Chorus Resonance", 0.47f, 0.95f, 0.68f, 1.65f, 0.71f, 0.13f, 0.52f, 0.94f);
-            add("Filter Panic", 0.79f, 0.78f, 0.76f, 2.90f, 0.85f, 0.19f, 0.88f, 0.63f);
-            add("Dusty Mod Board", 0.58f, 0.88f, 0.49f, 0.75f, 0.64f, 0.15f, 0.47f, 0.71f);
-            add("Chaotic VCF", 0.73f, 0.82f, 0.83f, 5.60f, 0.79f, 0.17f, 0.92f, 0.74f);
-            add("Liquid Ring Bus", 0.54f, 0.92f, 0.53f, 1.25f, 0.67f, 0.12f, 0.59f, 0.62f);
+            add("Sub Melt LP", 0.26f, 0.62f, 0.32f, 0.40f, 0.08f, 0.09f, 0.22f, 0.42f);
+            add("Mid Bark BP", 0.68f, 0.78f, 0.74f, 1.80f, 0.32f, 0.26f, 0.54f, 0.50f);
+            add("Needle HP", 0.82f, 0.86f, 0.58f, 2.90f, 0.58f, 0.72f, 0.72f, 0.46f);
+            add("Near SelfOsc", 0.94f, 0.90f, 0.92f, 0.95f, 0.84f, 0.18f, 0.88f, 0.56f);
+            add("Thermal Sweep", 0.52f, 0.84f, 0.76f, 6.10f, 0.46f, 0.34f, 0.96f, 0.68f);
+            add("Instance Mismatch", 0.62f, 0.72f, 0.64f, 2.20f, 0.24f, 0.42f, 0.66f, 1.00f);
+            add("Filter Panic", 0.98f, 0.98f, 1.00f, 8.40f, 0.92f, 0.95f, 1.00f, 0.70f);
+            add("Dusty Mod Board", 0.44f, 0.66f, 0.42f, 1.10f, 0.20f, 0.20f, 0.36f, 0.74f);
+            add("Chaotic VCF", 0.88f, 0.82f, 0.86f, 4.80f, 0.70f, 0.58f, 0.94f, 0.80f);
+            add("Liquid Ring Bus", 0.58f, 0.76f, 0.66f, 3.30f, 0.48f, 0.30f, 0.62f, 0.62f);
             break;
         case 8: // Spring Chaos
-            add("Boing Chamber", 0.51f, 0.95f, 0.78f, 1.80f, 0.56f, 0.26f, 0.61f, 0.54f);
-            add("Crash Rail", 0.74f, 0.83f, 0.86f, 2.70f, 0.68f, 0.35f, 0.90f, 0.59f);
-            add("Hum Pickup", 0.42f, 0.97f, 0.44f, 0.46f, 0.47f, 0.48f, 0.39f, 0.50f);
-            add("Bent Tank", 0.67f, 0.88f, 0.69f, 1.05f, 0.63f, 0.31f, 0.72f, 0.64f);
-            add("Feedback Alley", 0.79f, 0.79f, 0.90f, 3.40f, 0.74f, 0.29f, 0.84f, 0.70f);
-            add("Mechanical Ghost", 0.49f, 0.93f, 0.58f, 2.10f, 0.52f, 0.37f, 0.67f, 0.77f);
-            add("Plate Gone Wrong", 0.62f, 0.85f, 0.66f, 1.40f, 0.59f, 0.24f, 0.54f, 0.55f);
-            add("Broken Return", 0.71f, 0.82f, 0.55f, 0.68f, 0.69f, 0.33f, 0.46f, 0.47f);
-            add("Ambient Coil", 0.45f, 0.96f, 0.82f, 0.98f, 0.48f, 0.27f, 0.63f, 0.86f);
-            add("Howl Network", 0.83f, 0.74f, 0.93f, 4.10f, 0.80f, 0.42f, 0.95f, 0.73f);
+            add("Boing Chamber", 0.42f, 0.62f, 0.36f, 0.55f, 0.44f, 0.10f, 0.28f, 0.50f);
+            add("Crash Rail", 0.86f, 0.90f, 0.92f, 5.40f, 0.77f, 0.40f, 0.96f, 0.64f);
+            add("Hum Pickup", 0.30f, 0.48f, 0.22f, 0.22f, 0.40f, 0.70f, 0.14f, 0.42f);
+            add("Bent Tank", 0.69f, 0.80f, 0.67f, 1.60f, 0.66f, 0.24f, 0.58f, 0.72f);
+            add("Feedback Alley", 0.88f, 0.97f, 0.98f, 7.10f, 0.86f, 0.30f, 0.98f, 0.76f);
+            add("Mechanical Ghost", 0.54f, 0.73f, 0.51f, 2.80f, 0.58f, 0.46f, 0.42f, 0.83f);
+            add("Plate Gone Wrong", 0.72f, 0.86f, 0.76f, 3.20f, 0.62f, 0.19f, 0.66f, 0.58f);
+            add("Broken Return", 0.91f, 0.58f, 0.47f, 1.10f, 0.74f, 0.52f, 0.62f, 0.36f);
+            add("Ambient Coil", 0.38f, 0.88f, 0.84f, 0.80f, 0.51f, 0.18f, 0.34f, 0.92f);
+            add("Howl Network", 0.96f, 1.00f, 1.00f, 9.60f, 0.92f, 0.62f, 1.00f, 0.84f);
             break;
         case 9: // Vinyl Weapon
-            add("OffCenter Drift", 0.50f, 0.97f, 0.72f, 0.34f, 0.56f, 0.22f, 0.61f, 0.53f);
-            add("Inner Groove Burn", 0.68f, 0.88f, 0.60f, 1.20f, 0.81f, 0.15f, 0.47f, 0.45f);
-            add("Static Storm", 0.44f, 0.94f, 0.78f, 3.20f, 0.52f, 0.58f, 0.84f, 0.60f);
-            add("Warped Pressing", 0.55f, 0.91f, 0.89f, 0.22f, 0.63f, 0.18f, 0.73f, 0.79f);
-            add("Needle Dust", 0.47f, 0.96f, 0.49f, 1.80f, 0.41f, 0.44f, 0.65f, 0.51f);
-            add("Bearing Grind", 0.73f, 0.82f, 0.44f, 0.62f, 0.70f, 0.27f, 0.39f, 0.56f);
-            add("Disc Erosion", 0.62f, 0.84f, 0.67f, 0.96f, 0.78f, 0.24f, 0.59f, 0.57f);
-            add("Haunted Turntable", 0.58f, 0.87f, 0.81f, 2.50f, 0.66f, 0.36f, 0.88f, 0.74f);
-            add("Mono Cutter", 0.64f, 0.89f, 0.37f, 0.40f, 0.74f, 0.12f, 0.31f, 0.10f);
-            add("Late Night Archive", 0.39f, 0.98f, 0.55f, 0.52f, 0.45f, 0.20f, 0.42f, 0.47f);
+            add("OffCenter Drift", 0.42f, 0.62f, 0.70f, 0.30f, 0.40f, 0.12f, 0.24f, 0.52f);
+            add("Inner Groove Burn", 0.84f, 0.86f, 0.52f, 1.70f, 0.96f, 0.14f, 0.34f, 0.30f);
+            add("Static Storm", 0.56f, 0.92f, 0.76f, 3.80f, 0.58f, 0.74f, 0.98f, 0.64f);
+            add("Warped Pressing", 0.64f, 0.88f, 0.98f, 0.18f, 0.62f, 0.16f, 0.76f, 0.82f);
+            add("Needle Dust", 0.38f, 0.54f, 0.28f, 2.20f, 0.36f, 0.54f, 0.52f, 0.46f);
+            add("Bearing Grind", 0.90f, 0.78f, 0.46f, 0.92f, 0.78f, 0.36f, 0.48f, 0.52f);
+            add("Disc Erosion", 0.76f, 0.82f, 0.60f, 1.30f, 0.86f, 0.24f, 0.70f, 0.60f);
+            add("Haunted Turntable", 0.70f, 0.90f, 0.88f, 2.80f, 0.74f, 0.46f, 1.00f, 0.80f);
+            add("Mono Cutter", 0.80f, 0.84f, 0.34f, 0.62f, 0.90f, 0.10f, 0.26f, 0.02f);
+            add("Late Night Archive", 0.30f, 0.48f, 0.22f, 0.44f, 0.28f, 0.08f, 0.18f, 0.44f);
             break;
         case 10: // CalLab Ghost
             add("Leaky Sine Rig", 0.49f, 0.96f, 0.54f, 1.90f, 0.42f, 0.29f, 0.55f, 0.62f);
